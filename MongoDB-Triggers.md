@@ -6,6 +6,7 @@ Triggers are ways to execute JS code when an event occurs.
 
 > This example logs when a document is added, modified, or deleted from a collection
 > For this example we will be using a saas_demo database:
+> 
 > ![](images/triggers/00.png)
 >
 > We will add a new collection called 'publishers'. The second new collection will be automatically created
