@@ -32,35 +32,35 @@ Click Add Trigger to add a new Trigger
 
 Give the trigger a name and enable it.
 
-| Item               | Value                             | Image                                |
-| ------------------ | --------------------------------- | ------------------------------------ |
-| Trigger Type       | Database                          | ![](images/triggers/03.png) |
-| Trigger Name       | publisher_data_change             |                                      |
-| Enables            | ON                                |                                      |
+| Item         | Value                 | Image                       |
+|--------------|-----------------------|-----------------------------|
+| Trigger Type | Database              | ![](images/triggers/03.png) |
+| Trigger Name | publisher_data_change |                             |
+| Enables      | ON                    |                             |
 
 Set the event ordering to ON, and the link data source will be the Sandbox for our example.
 
-| Item               | Value                             | Image                                |
-| ------------------ | --------------------------------- | ------------------------------------ |
-| Event ordering     | ON                                | ![](images/triggers/04.png) |
-| Link data Source   | Sandbox                           | ![](images/triggers/05.png) |
+| Item             | Value   | Image                       |
+|------------------|---------|-----------------------------|
+| Event ordering   | ON      | ![](images/triggers/04.png) |
+| Link data Source | Sandbox | ![](images/triggers/05.png) |
 
 Next set the trigger source. This is the Cluster name, the database (saas_demo), the publishers collection
 and teh operations will be all four - insert, update, delete and replace.
 
-| Item               | Value                             | Image                                |
-| ------------------ | --------------------------------- | ------------------------------------ |
-| Cluster Name       | Sandbox                           | ![](images/triggers/06.png) |
-| Database Name      | saas_demo                         | ![](images/triggers/07.png) |
-| Collection Name    | publishers                        |                                      |
-| Operation Type     | Insert, Update, Replace, Delete   |                                      |
+| Item            | Value                           | Image                       |
+|-----------------|---------------------------------|-----------------------------|
+| Cluster Name    | Sandbox                         | ![](images/triggers/06.png) |
+| Database Name   | saas_demo                       | ![](images/triggers/07.png) |
+| Collection Name | publishers                      |                             |
+| Operation Type  | Insert, Update, Replace, Delete |                             |
 
-To track changes in the documents and to send their full details back via the change event, we 
+To track changes in the documents and to send their full details back via the change event, we
 turn on the Full Document option:
 
-| Item               | Value                             | Image                                |
-| ------------------ | --------------------------------- | ------------------------------------ |
-| Full Document      | ON                                | ![](images/triggers/08.png) |
+| Item          | Value | Image                       |
+|---------------|-------|-----------------------------|
+| Full Document | ON    | ![](images/triggers/08.png) |
 
 Next we add the function to be executed on document changes.
 
@@ -69,7 +69,7 @@ The function we will run is then written in JS:
 ```javascript
 /* This uses PROMISES in place of async calls. */
 
-exports = function(changeEvent) {
+exports = function (changeEvent) {
     /* Get the document from the change event */
     const newDocument = changeEvent.fullDocument;
 
@@ -91,7 +91,7 @@ exports = function(changeEvent) {
 
     /* connect to your Sandbox, then the demo_saas database, and the audit collection */
     const atlasClient = context.services.get("Sandbox");
-    const auditCollection = atlasClient.db("saas_saas").collection("audit");
+    const auditCollection = atlasClient.db("saas_demo").collection("audit");
 
     /* return the result of inserting the audit document */
     return auditCollection.insertOne(auditDocument)
@@ -108,17 +108,17 @@ In the Testing console we add the following code:
 
 ```javascript
 const changeEvent = {
-  operationType: 'insert',
-  fullDocument: {
-    "_id": {
-      "$oid": "6068b0f198de9c13d56d79f7"
-    },
-    "name": "John Doe",
-    "email": "johndoe@example.com",
-    "created_at": {
-      "$date": "2023-04-03T12:00:00.000Z"
+    operationType: 'insert',
+    fullDocument: {
+        "_id": {
+            "$oid": "6068b0f198de9c13d56d79f7"
+        },
+        "name": "John Doe",
+        "email": "johndoe@example.com",
+        "created_at": {
+            "$date": "2023-04-03T12:00:00.000Z"
+        }
     }
-  }
 };
 
 exports(changeEvent);
@@ -162,31 +162,80 @@ You should see something like this:
 
 ![](images/triggers/11.png)
 
-If you were to insert multiple new publishers using an array of new documents, then each new 
+If you were to insert multiple new publishers using an array of new documents, then each new
 document would be tracked in the audit.
 
-This is a wonderful way to keep tr5ack of changes in your system.
+This is a wonderful way to keep track of changes in your system.
 
-## Exercise
+### Small Issue - the testing gives undefined...
 
-Add a trigger that logs deletions from the publisher collection. Test and then double check it
-functions as expected when actually modifying the publisher collection by deleting one of the 
+How can we remove this strange issue when testing?
+
+To do so, we need to return a value from the promises.
+
+Update the trigger code to read:
+
+```js
+/* This uses PROMISES in place of async calls. */
+
+exports = function (changeEvent) {
+    /* Get the document from the change event */
+    const newDocument = changeEvent.fullDocument
+
+    /* if we do not have a 'new document' then display an error to the console log */
+    /* This could be modified to also check if there was a delete event, and log the event */
+    if (!newDocument) {
+        console.log('No document found in the change event')
+        return
+    }
+
+    /* Create the audit document - for the insert */
+    const auditDocument = {
+        eventType: 'insert',
+        collectionName: 'publishers',
+        documentId: newDocument._id,
+        timestamp: new Date(),
+        data: newDocument
+    }
+
+    /* connect to your Cluster/Sandbox, then the demo_saas database, and the audit collection */
+    const atlasClient = context.services.get("Sandbox")
+    const auditCollection = atlasClient.db("saas_demo").collection("audit")
+
+    /* return the result of inserting the audit document */
+    return auditCollection.insertOne(auditDocument)
+        .then(result => {
+            console.log(`Inserted audit document with ID ${result.insertedId}`)
+            return true;
+        })
+        .catch(error => {
+            console.error(error)
+            return false;
+        })
+}
+```
+
+## Exercise: Delete Trigger
+
+Create a new trigger that logs deletions from the publisher collection.
+
+Test and then double check it functions as expected when actually
+modifying the publisher collection by deleting one of the
 publishers you added.
 
-## Exercise
+## Exercise: Update Trigger
 
-Disable the delete trigger.
+Create a new trigger that logs updates of documents in the publisher collection.
 
-Modify the original trigger now log the deletions as well as insertions.
+1. Log the updated document only.
+2. Log the original document as well as the updated document.
 
-## Update/Replace
+### Exercise: Replace Trigger
 
-Finally, add suitable code that will log when a document is updated or replaced.
-
-If it is possible, make sure you track these two changes separately.
+Finally, add a suitable trigger that will log when a document is replaced.
 
 ### Warnings
 
-When creating an audit type log, such as that shown, make sure that 
+When creating an audit type log, such as that shown, make sure that
 any data such as passwords, drivers-license details, eMail addresses, etc.,
 are obfuscated/redacted/scrambled.
